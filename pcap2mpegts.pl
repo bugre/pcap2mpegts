@@ -15,6 +15,7 @@
 # specify the Multicast group Destination IP or Port.
 #
 # 20200217 - bugre: Initial copy/adjustment.
+# 20200303 - bugre: Check output file existence and ask/overwrite output file
 #
 
 use strict;
@@ -25,13 +26,26 @@ use Getopt::Long;
 
 my $outfile = '';
 my $logfile = '';
+my $foverwrite = 0;  # overwrite output file. Default to false
 
 
-GetOptions( 'l|logfile=s' => \$logfile, 'o|outfile=s' => \$outfile, );
-die "Usage: pcap2mpeg.pl -l LOGFILE -o OUTFILE"
+
+GetOptions( 'l|logfile=s' => \$logfile, 'o|outfile=s' => \$outfile, 
+            'y|yes' => \$foverwrite);
+
+die "Usage: pcap2mpeg.pl [-y (Overwrite)] -l LOGFILE -o OUTFILE"
   unless ( defined $logfile && defined $outfile );
 
-open OUT, ">>$outfile" or die "Can not open $outfile $!\n";
+if ( -e $outfile && ! $foverwrite ) {
+  print ("File \"$outfile\" already exists. Overwrite? (y/n):");
+  my $over = <STDIN>; chomp ($over);
+  if ( $over ne "y" ) {
+    die "Exiting... remove output file first!\n\n"
+  } 
+  $foverwrite = 1;
+}
+
+open OUT, ">$outfile" or die "Can not open $outfile $!\n";
 
 my $log = Net::TcpDumpLog->new();
 $log->read("$logfile");
