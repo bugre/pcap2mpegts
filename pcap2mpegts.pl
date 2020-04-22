@@ -16,8 +16,9 @@
 #
 # 20200217 - bugre: Initial copy/adjustment.
 # 20200303 - bugre: Check output file existence and ask/overwrite output file
-# 20200311 - bugre: Add support to for multicast group destination UDP Port
+# 20200311 - bugre: Add multicast group destination UDP Port
 #                   to differentiate multiple streams on the same IP/capture
+# 20200422 - bugre: Add multicast group IP filtering ( also requeries dest_port)
 #
 
 use strict;
@@ -29,16 +30,21 @@ use Getopt::Long;
 my $outfile = '';
 my $logfile = '';
 my $foverwrite = 0;  # overwrite output file. Default to false
-my $dest_port = 0;   # mcast group PORT num to differentiate beween multiple streams on same IP
+my $dest_port  = 0;  # mcast group PORT num to differentiate beween multiple streams on same IP
+my $dest_ip    = ''; # mcast group IP to differentiate beween multiple streams on the same capture
 
 
 
 GetOptions( 'l|logfile=s' => \$logfile, 'o|outfile=s' => \$outfile, 
             'y|yes' => \$foverwrite,
-            'p|dest_port=i' => \$dest_port);
+            'p|dest_port=i' => \$dest_port, 'i|dest_ip=s' => \$dest_ip);
 
 die "Usage: pcap2mpeg.pl [-y (Overwrite)] [-p dest_port] [-i dest_ip -p dest_port] -l LOGFILE -o OUTFILE\n\n"
-  unless ( defined $logfile && defined $outfile );
+  unless ( $logfile ne '' && $outfile ne '');
+
+die "Usage: pcap2mpeg.pl  [-y (Overwrite)] [-p dest_port] [-i dest_ip -p dest_port] -l LOGFILE -o OUTFILE\n\t"
+    "when mcast group IP is specified you must also specify udp port number.\n\n"
+  if ( $dest_ip ne '' && $dest_port == 0);
 
 if ( -e $outfile && ! $foverwrite ) {
   print ("File \"$outfile\" already exists. Overwrite? (y/n):");
@@ -60,6 +66,9 @@ foreach my $index (@Indexes) {
     my $data = $log->data($index);
     my ( $ether_dest, $ether_src, $ether_type, $ether_data ) = unpack('H12H12H4a*', $data );
     my $ip_obj   = NetPacket::IP->decode($ether_data);
+
+    next if ( $dest_ip ne '' && ( $dest_ip ne $ip_obj->{dest_ip} ));  ## if checking IP, only process data on that IP
+
     my @bytes_ip = split /\./, ( $ip_obj->{dest_ip} );
     my $udp_obj  = NetPacket::UDP->decode( $ip_obj->{data} );
     if ( $bytes_ip[0] >= 224 and $bytes_ip[0] <= 240 ){     # only extract data from multicast addresses
