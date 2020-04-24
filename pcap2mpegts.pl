@@ -19,6 +19,7 @@
 # 20200311 - bugre: Add multicast group destination UDP Port
 #                   to differentiate multiple streams on the same IP/capture
 # 20200422 - bugre: Add multicast group IP filtering ( also requeries dest_port)
+# 20200424 - bugre: Add some messages and progress notification
 #
 
 use strict;
@@ -42,9 +43,29 @@ GetOptions( 'l|logfile=s' => \$logfile, 'o|outfile=s' => \$outfile,
 die "Usage: pcap2mpeg.pl [-y (Overwrite)] [-p dest_port] [-i dest_ip -p dest_port] -l LOGFILE -o OUTFILE\n\n"
   unless ( $logfile ne '' && $outfile ne '');
 
-die "Usage: pcap2mpeg.pl  [-y (Overwrite)] [-p dest_port] [-i dest_ip -p dest_port] -l LOGFILE -o OUTFILE\n\t"
+die "Usage: pcap2mpeg.pl  [-y (Overwrite)] [-p dest_port] [-i dest_ip -p dest_port] -l LOGFILE -o OUTFILE\n\t" . 
     "when mcast group IP is specified you must also specify udp port number.\n\n"
   if ( $dest_ip ne '' && $dest_port == 0);
+
+#==================
+my $progressPos=0;  # remember progress state
+my $progressFwd=1;
+sub showProgress {
+    local $| = 1;
+    # print "\b", qw( | / - \ )[$progressPos++%4];
+    if ( $progressFwd ){
+      print ".";
+      if ( $progressPos++ > 50 ) {
+        $progressFwd = 0;
+      }
+    } else {
+      print "\b \b";
+      if ( $progressPos-- < 1 ) {
+        $progressFwd = 1;
+      }
+    }
+}
+#==================
 
 if ( -e $outfile && ! $foverwrite ) {
   print ("File \"$outfile\" already exists. Overwrite? (y/n):");
@@ -57,11 +78,16 @@ if ( -e $outfile && ! $foverwrite ) {
 
 open OUT, ">$outfile" or die "Can not open $outfile $!\n";
 
+$| = 1;
+print ("Loading PCAP file: $logfile ...\n");
+
 my $log = Net::TcpDumpLog->new();
 $log->read("$logfile");
 my @Indexes = $log->indexes;
 
+print ("Start processing ...: ");
 foreach my $index (@Indexes) {
+    showProgress ();
     my ( $length_orig, $length_incl, $drops, $secs, $msecs ) = $log->header($index);
     my $data = $log->data($index);
     my ( $ether_dest, $ether_src, $ether_type, $ether_data ) = unpack('H12H12H4a*', $data );
@@ -82,3 +108,4 @@ foreach my $index (@Indexes) {
       }
     }
 }
+print "\n";
