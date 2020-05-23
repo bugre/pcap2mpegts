@@ -43,7 +43,7 @@ GetOptions( 'l|logfile=s' => \$logfile, 'o|outfile=s' => \$outfile,
 die "Usage: $0 [-y (Overwrite)] [-p dest_port] [-i dest_ip -p dest_port] -l LOGFILE -o OUTFILE\n\n"
   unless ( $logfile ne '' && $outfile ne '');
 
-die "Usage: pcap2mpegts.pl  [-y (Overwrite)] [-p dest_port] [-i dest_ip -p dest_port] -l LOGFILE -o OUTFILE\n\t" . 
+die "Usage: $0 [-y (Overwrite)] [-p dest_port] [-i dest_ip -p dest_port] -l LOGFILE -o OUTFILE\n\t" . 
     "when mcast group IP is specified you must also specify udp port number.\n\n"
   if ( $dest_ip ne '' && $dest_port == 0);
 
@@ -86,26 +86,22 @@ $log->read("$logfile");
 my @Indexes = $log->indexes;
 
 print ("Start processing ...: ");
+
 foreach my $index (@Indexes) {
-    showProgress ();
-    my ( $length_orig, $length_incl, $drops, $secs, $msecs ) = $log->header($index);
-    my $data = $log->data($index);
-    my ( $ether_dest, $ether_src, $ether_type, $ether_data ) = unpack('H12H12H4a*', $data );
-    my $ip_obj   = NetPacket::IP->decode($ether_data);
+  showProgress ();
+  # my ( $length_orig, $length_incl, $drops, $secs, $msecs ) = $log->header($index);
+  my $data = $log->data($index);
+  my ( $ether_dest, $ether_src, $ether_type, $ether_data ) = unpack('H12H12H4a*', $data );
+  
+  my $ip_obj = NetPacket::IP->decode($ether_data);
+  next if ( $dest_ip ne '' && ( $dest_ip ne $ip_obj->{dest_ip} ));   # if filtering by IP, only process data on that IP
+  
+  my $udp_obj = NetPacket::UDP->decode( $ip_obj->{data} );
+  next if ( $dest_port && ( $dest_port != $udp_obj->{dest_port} ) ); # if filtering by dest_port, save only that dest_port
 
-    next if ( $dest_ip ne '' && ( $dest_ip ne $ip_obj->{dest_ip} ));  ## if checking IP, only process data on that IP
-
-    my @bytes_ip = split /\./, ( $ip_obj->{dest_ip} );
-    my $udp_obj  = NetPacket::UDP->decode( $ip_obj->{data} );
-    if ( $bytes_ip[0] >= 224 and $bytes_ip[0] <= 240 ){     # only extract data from multicast addresses
-      my $data_neu = $udp_obj->{data};
-      if ( $dest_port ) {                                   # if dest_port is defined, then only save if it's the desired dest_port
-        if ( $dest_port == $udp_obj->{dest_port} ) {
-          print OUT $data_neu;
-        }
-      } else {
-        print OUT $data_neu;
-      }
-    }
+  my @bytes_ip = split /\./, ( $ip_obj->{dest_ip} );
+  if ( $bytes_ip[0] >= 224 and $bytes_ip[0] <= 240 ){     # only extract data from multicast addresses
+    print OUT $udp_obj->{data};;
+  }
 }
 print "\n";

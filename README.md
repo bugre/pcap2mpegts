@@ -30,6 +30,7 @@ $ pcap2mpegts.pl -l <pcal_capture_file.pcap> -o <output_mpeg.ts>
 
 *other options*
 ```
+$ pcap2mpegts.pl -y -i 239.100.0.1 -p 2000 -l multi_ts_capture.pcap -o single-stream-output.ts
  -y                          # ATENTION **overwrite** the output file without confirmation.
  -p dest_port                # filter mcast traffic extraction by UDP Destination Port
  -i dest_ip                  # filter mcast traffic extraction by mcast group IP. *MUST* also specify port if IP is specified
@@ -43,5 +44,9 @@ Some capture options
 Ensure that your multicast group `239.100.0.1` (multicast group in this example) is being consumed (joined), so that the traffic is flowing on the *NIC* (eth0 in this example) that you'll capture
     
     tcpdump -nn -s0 -B 8192 -i eth0 host 239.100.0.1 
+    
+or
+    
+    tcpdump -nn -s0 -B 8192 -i eth0 host 239.100.0.1 and udp
     
 
