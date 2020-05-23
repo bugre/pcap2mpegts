@@ -40,10 +40,10 @@ GetOptions( 'l|logfile=s' => \$logfile, 'o|outfile=s' => \$outfile,
             'y|yes' => \$foverwrite,
             'p|dest_port=i' => \$dest_port, 'i|dest_ip=s' => \$dest_ip);
 
-die "Usage: pcap2mpeg.pl [-y (Overwrite)] [-p dest_port] [-i dest_ip -p dest_port] -l LOGFILE -o OUTFILE\n\n"
+die "Usage: $0 [-y (Overwrite)] [-p dest_port] [-i dest_ip -p dest_port] -l LOGFILE -o OUTFILE\n\n"
   unless ( $logfile ne '' && $outfile ne '');
 
-die "Usage: pcap2mpeg.pl  [-y (Overwrite)] [-p dest_port] [-i dest_ip -p dest_port] -l LOGFILE -o OUTFILE\n\t" . 
+die "Usage: pcap2mpegts.pl  [-y (Overwrite)] [-p dest_port] [-i dest_ip -p dest_port] -l LOGFILE -o OUTFILE\n\t" . 
     "when mcast group IP is specified you must also specify udp port number.\n\n"
   if ( $dest_ip ne '' && $dest_port == 0);
 
