@@ -6,47 +6,83 @@ I had the need troubleshoot multicast traffic, and the closest way to the networ
 
 But the evaluation of the data stream on a MPEG (video/audio) level using tools like dvbinspector, ffmpeg and others, needs the data correctly formatted as a MPEG TransportStream.
 
-If the pcap file captured has multiple transport stream, on different IP (group) or UDP Ports, you must use the `-p <dst_port>` and or `-i <mcast IP> -p <dst_port>` so the extracted TS has only the selected mpeg audio/video.
+If the pcap file captured has multiple transport stream, on different IP (group) or UDP Ports, you must use the `-p <dst_port>` and or `-i <mcast IP> -p <dst_port>` so that the extracted TS has only the selected mpeg audio/video.
 
-*credits:*
-> It's based/inspired by script posted by walto at 
+### credits:
+> It's based on script posted by walto at 
 >  ==> https://www.perlmonks.org/?node_id=661366
 
 
-### install
- * clone this repo or copy the pcap2mpegts.pl file to your system.
- * you'll need perl and some perl libraries. You can use cpan or any other way to install them.
-	 * cpan install Net::TcpDumpLog
-	 * cpan install NetPacket::IP
-	 * cpan install NetPacket::UDP
-	 * cpan install Getopt::Long
- 
 
-### usage
-*minimal*
+### How to use:
+#### Command line options
+```
+ -l|--logfile <file>        # input capture (PCAP) log file
+ -o|--outfile <file>        # output transport stream file
+ -y|--yes                   # **overwrite** the output file without confirmation.
+ -p|--dest_port dest_port   # filter extraction by UDP Destination Port
+ -i|--dest_ip dest_ip       # filter extraction by mcast group IP. 
+                              *MUST* also specify port if IP is specified
+
+```
+
+#### docker/container (no need to install perl or depencies)
+
+```
+docker run --rm -v $PWD:/inout bugre/pcap2mpegts \
+      --yes                                      \
+      --logfile /inout/mycapture.pcap            \
+      --outfile /inout/mycapture.ts
+```
+
+------------------------
+#### perl source version
+
 ```
 $ pcap2mpegts.pl -l <pcal_capture_file.pcap> -o <output_mpeg.ts>
 ```
 
-*other options*
+* with filtering
 ```
 $ pcap2mpegts.pl -y -i 239.100.0.1 -p 2000 -l multi_ts_capture.pcap -o single-stream-output.ts
- -y                          # ATENTION **overwrite** the output file without confirmation.
- -p dest_port                # filter mcast traffic extraction by UDP Destination Port
- -i dest_ip                  # filter mcast traffic extraction by mcast group IP. *MUST* also specify port if IP is specified
-
 ```
 
-## how to capture data
+##### install
+ * clone this repo or copy the pcap2mpegts.pl file to your system.
+ * you'll need perl and some perl libraries. You can use cpanm, cpan or any other way to install them.
+	* cpanm:
+		* curl -L http://cpanmin.us | perl - App::cpanminus
+		* cpanm install Net::TcpDumpLog NetPacket::IP NetPacket::UDP Getopt::Long
+	* cpan
+	 	* cpan install Net::TcpDumpLog NetPacket::IP NetPacket::UDP Getopt::Long
+ 
+ 
 
-Some capture options
 
-Ensure that your multicast group `239.100.0.1` (multicast group in this example) is being consumed (joined), so that the traffic is flowing on the *NIC* (eth0 in this example) that you'll capture
-    
-    tcpdump -nn -s0 -B 8192 -i eth0 host 239.100.0.1 
-    
-or
-    
-    tcpdump -nn -s0 -B 8192 -i eth0 host 239.100.0.1 and udp
-    
+## How to capture data
 
+You *must ansure* that your multicast group `239.100.0.1/port` (in this example) is already joined on the same server/NIC, so that the traffic is flowing on the *NIC* that you'll capture.
+
+```
+	## specific multicast group (IP) and destination port on NIC eth0
+	tcpdump -nn -s0 -B 8192 -w mycapture.pcap -i eth0 host 239.100.0.1 and port 3456 and udp
+
+	## specific multicast group (IP) on NIC eth0
+	tcpdump -nn -s0 -B 8192 -w mycapture.pcap -i eth0 host 239.100.0.1 and udp
+
+	## all udp traffic seen on the NIC
+	tcpdump -nn -s0 -B 8192 -w mycapture.pcap -i eth0 udp
+```
+
+### Docker build example...
+```
+docker build -t bugre/pcap2mpegts:latest -t bugre/pcap2mpegts:$(awk -F 'version="|"' '/LABEL version="/{print $2}' < ./Dockerfile) .
+docker push ...
+```
+
+#### ... on Apple Silicon for AMD64/intel
+```
+docker buildx build --platform linux/amd64 -t bugre/pcap2mpegts:latest -t bugre/pcap2mpegts:$(awk -F 'version="|"' '/LABEL version="/{print $2}' < ./Dockerfile) .
+
+docker push bugre/pcap2mpegts:latest && docker push bugre/pcap2mpegts:$(awk -F 'version="|"' '/LABEL version="/{print $2}' < ./Dockerfile)
+```
