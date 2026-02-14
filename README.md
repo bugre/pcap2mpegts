@@ -1,7 +1,7 @@
 ---
 name: pcap2mpegts
 aliases: [pcap2ts]
-description: Convert PCAP network capture files (UDP multicast) to MPEG Transport Stream video files. Use case: troubleshoot multicast traffic, evaluate packet loss with tcpdump/Wireshark.
+description: "Convert PCAP network capture files (UDP multicast) to MPEG Transport Stream video files. Use case: troubleshoot multicast traffic, evaluate packet loss with tcpdump/Wireshark."
 language: Perl
 keywords: pcap, pcap2ts, mpeg-ts, transport stream, tcpdump, wireshark, multicast, udp, video extraction, broadcast
 license: GPL-2.0
