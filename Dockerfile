@@ -1,7 +1,7 @@
 # https://dev.to/zakame/a-few-tips-for-perl-on-docker-and-kubernetes-29bg
 # docker build -t myorg/myapp:dev .
 
-FROM perl:5.41.8-slim
+FROM perl:5.42-slim
 
 LABEL maintainer="bugre"
 LABEL version="v0.3.1"
