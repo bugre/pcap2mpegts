@@ -1,14 +1,18 @@
 # https://dev.to/zakame/a-few-tips-for-perl-on-docker-and-kubernetes-29bg
-# docker build -t myorg/myapp:dev .\
+# docker build -t myorg/myapp:dev .
 
 FROM perl:5.41.8-slim
 
 LABEL maintainer="bugre"
-LABEL version="v0.3.0" description="Use pcap2mpegts to extract a transport stream (TS) from a network capture pcap file (tcpdump / wireshark)."
+LABEL version="v0.3.1"
+LABEL description="pcap2mpegts (pcap2ts) extracts a transport stream (TS) from a network capture pcap file (tcpdump / wireshark)."
 
 WORKDIR /usr/src/app
-ADD pcap2mpegts.pl /usr/src/app
 
-RUN curl -L http://cpanmin.us | perl - App::cpanminus
-RUN cpanm install Net::TcpDumpLog NetPacket::IP NetPacket::UDP Getopt::Long
+# Install dependencies first (cached unless deps change)
+RUN curl -L https://cpanmin.us | perl - App::cpanminus \
+    && cpanm install Net::TcpDumpLog NetPacket::IP NetPacket::UDP Getopt::Long
+
+COPY pcap2mpegts.pl /usr/src/app
+
 ENTRYPOINT ["perl", "pcap2mpegts.pl"]
