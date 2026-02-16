@@ -1,4 +1,4 @@
-#!/usr/bin/env perl -w
+#!/usr/bin/env perl
 #
 # It's based/inspired by script posted by walto at 
 #  ==> https://www.perlmonks.org/?node_id=661366
@@ -11,10 +11,10 @@
 #
 # Converts tcpdump or wireshark multicast/UDP capture from pcap format into mpeg video file.
 #
-# If the capture has multiple streams on differente IPs or different ports you must 
+# If the capture has multiple streams on different IPs or different ports you must 
 # specify the Multicast group Destination IP or Port.
 # 
-# To use, yoyu'll need some modules.. install with:
+# To use, you'll need some modules. Install with:
 #  cpan install Net::TcpDumpLog NetPacket::IP NetPacket::UDP Getopt::Long
 #
 # 20200217 - bugre: Initial copy/adjustment.
@@ -24,11 +24,14 @@
 # 20200422 - bugre: Add multicast group IP filtering ( also requeries dest_port)
 # 20200424 - bugre: Add some messages and progress notification
 # 20250222 - bugre: Create container (docker) image and minor changes
-# 20250222 - bugre: Fix: first try to load the input and then open the output, 
+# 20250222 - bugre: Fix: first try to load the input and then open the output,
 #                   to avoid creating empty output if error on loading input
+# 20260214 - bugre: END block for clean shutdown on SIGINT/SIGTERM; skip non-IPv4
+#                   and non-UDP packets; fail fast when non-interactive and -y needed
 #
 
 use strict;
+use warnings;
 use Net::TcpDumpLog;
 use NetPacket::IP;
 use NetPacket::UDP qw(:strip);
@@ -37,12 +40,18 @@ use Getopt::Long;
 my $outfile = '';
 my $logfile = '';
 my $foverwrite = 0;  # overwrite output file. Default to false
-my $dest_port  = 0;  # mcast group PORT num to differentiate beween multiple streams on same IP
-my $dest_ip    = ''; # mcast group IP to differentiate beween multiple streams on the same capture
+my $dest_port  = 0;  # mcast group PORT num to differentiate between multiple streams on same IP
+my $dest_ip    = ''; # mcast group IP to differentiate between multiple streams on the same capture
+my $out_fh;          # output file handle (needed for END block on signal)
 
+$SIG{INT} = sub { die "Caught SIGINT\n" };
+$SIG{TERM} = sub { die "Caught SIGTERM\n" };
 
-$SIG{INT} = sub { die "Caught a sigint $!" };
-$SIG{TERM} = sub { die "Caught a sigterm $!" };
+END {
+  if ( defined $out_fh && fileno($out_fh) ) {
+    close $out_fh or warn "Warning: could not close $outfile: $!\n";
+  }
+}
 
 GetOptions( 'l|logfile=s' => \$logfile, 'o|outfile=s' => \$outfile, 
             'y|yes' => \$foverwrite,
@@ -76,11 +85,14 @@ sub showProgress {
 #==================
 
 if ( -e $outfile && ! $foverwrite ) {
+  if ( ! -t STDIN ) {
+    die "File \"$outfile\" already exists. Use -y to overwrite, or run interactively.\n\n";
+  }
   print ("File \"$outfile\" already exists. Overwrite? (y/n):");
   my $over = <STDIN>; chomp ($over);
   if ( $over ne "y" ) {
     die "Exiting... remove output file first!\n\n"
-  } 
+  }
   $foverwrite = 1;
 }
 
@@ -91,7 +103,8 @@ my $log = Net::TcpDumpLog->new();
 $log->read("$logfile") || die "Can't read $logfile $!\n";
 
 
-open OUT, ">$outfile" or die "Can't open $outfile $!\n";
+open $out_fh, '>', $outfile or die "Can't open $outfile: $!\n";
+binmode $out_fh;
 
 
 print ("Start processing ...: ");
@@ -104,18 +117,21 @@ foreach my $index (@Indexes) {
   my ( $ether_dest, $ether_src, $ether_type, $ether_data ) = unpack('H12H12H4a*', $data );
   
   if ( $ether_data eq '' ) {
-    print STDERR "log=>", $ether_dest; 
+    print STDERR "log=>", $ether_dest;
     next;
   }
+  next if $ether_type ne '0800';   # skip non-IPv4 frames
   my $ip_obj = NetPacket::IP->decode($ether_data);
   next if ( $dest_ip ne '' && ( $dest_ip ne $ip_obj->{dest_ip} ));   # if filtering by IP, only process data on that IP
-  
+  next if $ip_obj->{proto} != 17;  # skip non-UDP packets (proto 17 = UDP)
   my $udp_obj = NetPacket::UDP->decode( $ip_obj->{data} );
   next if ( $dest_port && ( $dest_port != $udp_obj->{dest_port} ) ); # if filtering by dest_port, save only that dest_port
 
   my @bytes_ip = split /\./, ( $ip_obj->{dest_ip} );
   if ( $bytes_ip[0] >= 224 and $bytes_ip[0] <= 240 ){                # only extract data from multicast addresses
-    print OUT $udp_obj->{data};;
+    print $out_fh $udp_obj->{data};
   }
 }
+close $out_fh or warn "Warning: could not close $outfile: $!\n";
+undef $out_fh;  # prevent END block from closing again
 print "\n";
