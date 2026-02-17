@@ -38,7 +38,7 @@ use NetPacket::UDP qw(:strip);
 use Getopt::Long;
 
 my $outfile = '';
-my $logfile = '';
+my $capture_file = '';
 my $foverwrite = 0;  # overwrite output file. Default to false
 my $dest_port  = 0;  # mcast group PORT num to differentiate between multiple streams on same IP
 my $dest_ip    = ''; # mcast group IP to differentiate between multiple streams on the same capture
@@ -53,14 +53,14 @@ END {
   }
 }
 
-GetOptions( 'l|logfile=s' => \$logfile, 'o|outfile=s' => \$outfile, 
+GetOptions( 'l|capture_file=s' => \$capture_file, 'o|outfile=s' => \$outfile, 
             'y|yes' => \$foverwrite,
             'p|dest_port=i' => \$dest_port, 'i|dest_ip=s' => \$dest_ip);
 
-die "Usage: $0 [-y (Overwrite)] [-p dest_port] [-i dest_ip -p dest_port] -l LOGFILE(PCAP) -o OUTFILE\n\n"
-  unless ( $logfile ne '' && $outfile ne '');
+die "Usage: $0 [-y (Overwrite)] [-p dest_port] [-i dest_ip -p dest_port] -l CAPTURE_FILE(PCAP) -o OUTFILE\n\n"
+  unless ( $capture_file ne '' && $outfile ne '');
 
-die "Usage: $0 [-y (Overwrite)] [-p dest_port] [-i dest_ip -p dest_port] -l LOGFILE(PCAP) -o OUTFILE\n\t" . 
+die "Usage: $0 [-y (Overwrite)] [-p dest_port] [-i dest_ip -p dest_port] -l CAPTURE_FILE(PCAP) -o OUTFILE\n\t" . 
     "when multicast group IP is specified you must also specify udp port.\n\n"
   if ( $dest_ip ne '' && $dest_port == 0);
 
@@ -98,17 +98,19 @@ if ( -e $outfile && ! $foverwrite ) {
 
 # first try to open the input, if error, we avoid creating the output...
 $| = 1;
-print ("Loading PCAP file: $logfile ...\n");
+print ("Loading PCAP file: $capture_file ...\n");
 my $log = Net::TcpDumpLog->new();
-$log->read("$logfile") || die "Can't read $logfile $!\n";
+$log->read("$capture_file") || die "Can't read $capture_file $!\n";
 
 
 open $out_fh, '>', $outfile or die "Can't open $outfile: $!\n";
 binmode $out_fh;
 
 
-print ("Start processing ...: ");
+print ("Processing ...: ");
 my @Indexes = $log->indexes;
+my $packets_read   = scalar @Indexes;
+my $packets_written = 0;
 
 foreach my $index (@Indexes) {
   showProgress ();
@@ -130,8 +132,14 @@ foreach my $index (@Indexes) {
   my @bytes_ip = split /\./, ( $ip_obj->{dest_ip} );
   if ( $bytes_ip[0] >= 224 and $bytes_ip[0] <= 240 ){                # only extract data from multicast addresses
     print $out_fh $udp_obj->{data};
+    $packets_written++;
   }
 }
 close $out_fh or warn "Warning: could not close $outfile: $!\n";
 undef $out_fh;  # prevent END block from closing again
 print "\n";
+if ( $packets_written == 0 ) {
+  warn "Warning: no packets written. Output file \"$outfile\" will have zero bytes.\n";
+} else {
+  print "Done: $packets_read packets read, $packets_written packets written to \"$outfile\".\n";
+}
